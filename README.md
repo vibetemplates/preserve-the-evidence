@@ -1,96 +1,228 @@
 # preserve-the-evidence
 
-A Claude Code plugin that writes every session as a markdown file under `docs/claude-log/` in the project you're working in, and adds a `/note` slash command for logging annotations to the transcript without invoking any tools.
+> A Claude Code plugin that preserves a permanent, readable record of every session — no paste-the-transcript, no guessing what changed, no hoping you remember what you asked for last Tuesday.
 
-## What it does
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Node.js](https://img.shields.io/badge/node-%E2%89%A516.0.0-brightgreen.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
 
-- **Per-session markdown logs.** A `Stop` hook runs after every turn and writes `docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.md`. The same file is overwritten on each turn, so it always reflects the current state of the session. A new session gets a new file.
-- **`/note` command.** Logs a note to the session transcript without executing any tools. Use it to leave a written mark for yourself in the log.
-- **Cross-platform.** Pure Node.js using only built-ins (`fs`, `path`). No bash, no jq, no npm dependencies. Works on Windows, macOS, and Linux unchanged.
+---
+
+## Highlights
+
+- **Automatic per-session markdown transcripts.** Every Claude Code turn overwrites one markdown file — no manual save, no copy/paste, always up to date.
+- **Lives in your project.** Logs land in `docs/claude-log/` next to the code they document, so they're commit-able (or ignorable) just like any other file.
+- **`/note` slash command.** Drop annotations into the transcript without Claude running any tools — useful for tagging sections, leaving reminders, or marking decision points.
+- **Three verbosity modes.** `none`, `summary` (default), or `full` — choose how much tool-call detail to keep.
+- **Cross-platform, zero dependencies.** Pure Node.js using only built-ins (`fs`, `path`). No `bash`, no `jq`, no `npm install`. Same code runs unchanged on macOS, Linux, and Windows.
+- **Fails safely.** Hook errors never block Claude Code — the script always exits 0 and writes diagnostics to stderr.
+
+## What you get
+
+After each turn, a file like this appears in your project:
+
+```
+# Session a1b2c3d4 — 2026-04-20 14:32:17
+_mode: summary_
+
+## 🧑 User
+
+Can you refactor the auth middleware to use the new token helper?
+
+## 🤖 Claude
+
+I'll refactor `src/auth/middleware.ts` to use `lib/tokens.ts`. Let me
+start by reading both files.
+
+🔧 **Read**: src/auth/middleware.ts
+
+🔧 **Read**: lib/tokens.ts
+
+## 🤖 Claude
+
+The helper already exposes `verifyToken` — I'll swap the inline JWT
+check for that call.
+
+🔧 **Edit**: src/auth/middleware.ts
+
+## 🧑 User
+
+/preserve-the-evidence:note Stopped here. Need to add tests before the review.
+
+## 🤖 Claude
+
+📝 Noted.
+```
+
+That file is named `docs/claude-log/2026-04-20_a1b2c3d4.md` and is refreshed on every turn until the session ends. A new session = a new file.
+
+## Prerequisites
+
+| Requirement   | Why                                                          | How to check          |
+| :------------ | :----------------------------------------------------------- | :-------------------- |
+| Claude Code   | This is a Claude Code plugin                                 | `claude --version`    |
+| Node.js ≥ 16  | The `Stop` hook runs `node scripts/log-session.js`           | `node --version`      |
+| Git           | Claude Code uses git to clone the marketplace & plugin repos | `git --version`       |
+
+If `node` is missing, [install it via `nvm`](https://github.com/nvm-sh/nvm#install--update-script) (lightest), the [official installer](https://nodejs.org/en/download), or your package manager.
 
 ## Installation
 
-### Install from this marketplace (recommended)
+### Install from the marketplace (recommended)
 
-In Claude Code, run:
+Inside Claude Code, run:
 
 ```
 /plugin marketplace add vibetemplates/preserve-the-evidence
 /plugin install preserve-the-evidence
 ```
 
-That's it — the `Stop` hook and `/preserve-the-evidence:note` command become available immediately in the current project.
+The plugin is active immediately — no restart required. The `Stop` hook will start writing logs on the next turn, and `/preserve-the-evidence:note` will appear in your slash-command list.
 
-To uninstall or update later:
+You do **not** need to `git clone` anything manually. Claude Code handles the clone under the hood and caches it in `~/.claude/plugins/`.
+
+### Updating
+
+When a new version is published, refresh the marketplace and reinstall:
+
+```
+/plugin marketplace update preserve-the-evidence
+/plugin install preserve-the-evidence
+```
+
+### Uninstalling
 
 ```
 /plugin uninstall preserve-the-evidence
-/plugin marketplace update vibetemplates/preserve-the-evidence
+/plugin marketplace remove preserve-the-evidence
 ```
 
 ### Local development
 
-If you're hacking on the plugin itself, clone the repo and point Claude Code at the plugin subdirectory:
+If you're hacking on the plugin itself, clone the repo and point Claude Code at the **plugin subdirectory** (not the repo root):
 
 ```
 git clone https://github.com/vibetemplates/preserve-the-evidence.git
 claude --plugin-dir ./preserve-the-evidence/preserve-the-evidence
 ```
 
-(The outer `preserve-the-evidence/` is the marketplace repo; the inner `preserve-the-evidence/` is the plugin itself.)
+The outer `preserve-the-evidence/` is the marketplace repo; the inner `preserve-the-evidence/` is the plugin itself. Any edits you make to scripts, hooks, or commands are picked up on the next `/reload-plugins` — no reinstall needed.
+
+## Usage
+
+### Automatic session logging
+
+There's nothing to run. Once installed, every time Claude Code finishes a turn the `Stop` hook fires, reads the session's JSONL transcript, and rewrites your log file at:
+
+```
+<current-project>/docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.md
+```
+
+- **Same session** → same file, overwritten each turn.
+- **New session** → new file with a new 8-char session ID.
+- **Different project** → logs land in that project's `docs/claude-log/`. The plugin follows `cwd`.
+
+### The `/note` command
+
+Type this into Claude Code at any point:
+
+```
+/preserve-the-evidence:note Decided to split auth and billing into separate services.
+```
+
+Claude will respond **only** with `📝 Noted.` — no files read, no commands run, no tools invoked. On the next log write, your note appears in the transcript exactly like any other user message. Useful for:
+
+- Marking decision points ("Picked PostgreSQL over SQLite because…")
+- Leaving reminders mid-session ("Come back to this after lunch")
+- Flagging unresolved questions ("Ask Dana about the rate-limit policy")
+- Documenting intent so future-you can understand the transcript
 
 ## Configuration
 
-The plugin supports three logging modes that control how tool calls appear in the log:
+### Logging modes
 
-- `none` — Only user prompts and Claude's text responses. No tool calls at all.
-- `summary` — Adds a one-line summary per tool call (e.g., `🔧 **Bash**: \`npm test\``). **Default.**
-- `full` — Embeds full tool inputs (and tool results, for user entries) inside collapsible `<details>` blocks.
+The plugin supports three modes that control how tool calls render in the log:
 
-Mode is resolved in this order of precedence:
+| Mode      | Behavior                                                                                                        |
+| :-------- | :-------------------------------------------------------------------------------------------------------------- |
+| `none`    | Only user prompts and Claude's text responses. No tool calls at all. Cleanest reading.                          |
+| `summary` | **Default.** One-line tool summaries like `🔧 **Bash**: \`npm test\`` or `🔧 **Read**: src/foo.ts`.             |
+| `full`    | Complete tool inputs and results inside collapsible `<details>` blocks. Most verbose; best for debugging.       |
 
-1. CLI argument passed to the script (first positional arg)
-2. Environment variable `CLAUDE_LOG_MODE`
-3. A file at `<project>/.claude/log-mode` containing one of `none`, `summary`, `full`
-4. Default: `summary`
+### Setting the mode
 
-### Examples
+Mode is resolved in this order of precedence (first match wins):
 
-Set mode via env var for a single session:
+1. **CLI argument** passed to the hook script (advanced — only if you're wrapping the hook command yourself)
+2. **Environment variable** `CLAUDE_LOG_MODE`
+3. **File** at `<project>/.claude/log-mode` containing one of `none`, `summary`, `full`
+4. **Default**: `summary`
 
-```
+**Per-session override via env var:**
+
+```bash
 CLAUDE_LOG_MODE=full claude
 ```
 
-Set mode persistently for a project by creating `.claude/log-mode`:
+**Persistent per-project setting:**
 
-```
-echo full > .claude/log-mode
-```
-
-## Output
-
-Logs are written to `<project>/docs/claude-log/` with filenames like:
-
-```
-2026-04-20_a1b2c3d4.md
+```bash
+mkdir -p .claude && echo full > .claude/log-mode
 ```
 
-Each file begins with a header showing the short session id, date, time, and current mode, followed by rendered user and assistant messages in order.
+That file lives inside your project's `.claude/` directory (the same one Claude Code uses for project-local settings) and sticks for everyone who works on the project.
 
-## `/note` command
+## Output format
 
-Once the plugin is installed, invoke:
+### File naming
 
 ```
-/preserve-the-evidence:note Next we are working on authentication.
+docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.md
 ```
 
-Claude will reply only with `📝 Noted.` — no files read, no commands run, no tools called. The note becomes part of the transcript and shows up in the next log write.
+Example: `docs/claude-log/2026-04-20_a1b2c3d4.md`
 
-## Committing or ignoring logs
+Dates are ISO-format, UTC-based (from `new Date().toISOString()`). The 8-char session ID is a prefix of Claude Code's internal session UUID — enough to be unique in practice while staying readable in filenames.
 
-If you want the logs checked into the repo alongside the code they document, commit the `docs/claude-log/` directory as normal.
+### File structure
+
+```markdown
+# Session <short-id> — <date> <time>
+_mode: <mode>_
+
+## 🧑 User
+
+<their message>
+
+## 🤖 Claude
+
+<Claude's text response>
+
+🔧 **Tool**: <summary>     ← summary mode
+
+<details><summary>🔧 Tool</summary>    ← full mode
+```json
+{ "tool input" }
+```
+</details>
+```
+
+### Multi-turn behavior
+
+Each Stop event re-renders the entire session from the JSONL transcript, so the file always reflects the current state from turn 1 to now. If you switch modes mid-session, the next write reformats everything under the new mode.
+
+## Managing logs
+
+### Commit them
+
+Logs are just markdown. Commit `docs/claude-log/` alongside your code if you want a historical record of how the codebase was built. Handy for:
+
+- Onboarding (new teammates can read the thinking behind changes)
+- Debugging regressions ("when did this function get added?")
+- Documenting AI-assisted work for audit/compliance
+
+### Ignore them
 
 If you'd prefer to keep them local, add to your project's `.gitignore`:
 
@@ -98,15 +230,112 @@ If you'd prefer to keep them local, add to your project's `.gitignore`:
 docs/claude-log/
 ```
 
-## Notes
+Or put them somewhere that's already ignored — the plugin always writes to `<project>/docs/claude-log/`, but you can symlink that to wherever you like.
 
-- Hook scripts always exit 0 so they can never block Claude Code. Errors are written to stderr.
-- `${CLAUDE_PLUGIN_ROOT}` in the hook command is substituted by Claude Code at runtime, so the plugin works from any install location, including paths with spaces.
+## How it works
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Claude Code finishes a turn                                         │
+│       │                                                              │
+│       ▼                                                              │
+│  Stop hook fires (from plugin's hooks/hooks.json)                    │
+│       │                                                              │
+│       ▼                                                              │
+│  node scripts/log-session.js receives JSON on stdin:                 │
+│    { session_id, transcript_path, cwd }                              │
+│       │                                                              │
+│       ▼                                                              │
+│  Script reads transcript_path (JSONL), parses entries                │
+│       │                                                              │
+│       ▼                                                              │
+│  Renders user + assistant blocks per current mode                    │
+│       │                                                              │
+│       ▼                                                              │
+│  Writes to <cwd>/docs/claude-log/<date>_<short-id>.md                │
+│       │                                                              │
+│       ▼                                                              │
+│  Exits 0 (always — even on error)                                    │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+The plugin uses Claude Code's standard hook protocol. See [the Hooks reference](https://code.claude.com/docs/en/hooks) for the full hook spec.
+
+## Troubleshooting
+
+### Logs aren't appearing
+
+1. **Check Node.js is on PATH.** `node --version` in the same shell where you launch `claude`. If missing, install via [`nvm`](https://github.com/nvm-sh/nvm#install--update-script).
+2. **Check the plugin is installed and enabled.** Run `/plugin list` — you should see `preserve-the-evidence` with status **enabled**.
+3. **Check the hook is registered.** Run `/hooks` — you should see a `Stop` entry pointing at `log-session.js`.
+4. **Look for a `docs/claude-log/` directory in the project.** It's created on the first successful Stop event. If it isn't there after a few turns, Node isn't being found.
+
+### The log file exists but is mostly empty
+
+The script always writes a header even if it can't render anything. If the body is empty, the transcript JSONL probably doesn't contain user/assistant entries yet — try running one more turn.
+
+### Mode changes aren't taking effect
+
+Remember the precedence order: env var beats file. If you set `CLAUDE_LOG_MODE=summary` in your shell, a `.claude/log-mode` file with `full` won't win. Check with:
+
+```bash
+echo $CLAUDE_LOG_MODE
+cat .claude/log-mode
+```
+
+The effective mode appears as `_mode: <mode>_` in the log file header — the most reliable check.
+
+### Windows-specific notes
+
+The quoted `${CLAUDE_PLUGIN_ROOT}` path in `hooks/hooks.json` handles spaces in paths (including `C:\Users\<name with space>\...`). No extra configuration needed. Uses Node's `path.join` throughout, so slashes resolve correctly on any OS.
+
+### The hook runs but I see nothing
+
+Errors go to stderr. If you launch `claude` from a terminal, you'll see them there. The hook also always exits 0 by design — so it never blocks Claude Code, but also never fails loudly. Check stderr first.
+
+## Privacy
+
+- **Where your data goes:** Logs are written to your local filesystem at `<project>/docs/claude-log/`. Nothing is sent over the network by this plugin.
+- **What's logged:** Your prompts, Claude's responses, and (depending on mode) tool inputs and results. This can include file contents, command output, and anything else that appeared in the session.
+- **Sensitive data:** Don't commit the log directory if your sessions contain secrets, credentials, or customer data. Use `.gitignore` (see above) or a `.gitattributes` filter. The plugin doesn't redact anything.
+
+## Project structure
+
+```
+vibetemplates/preserve-the-evidence/           ← this repo
+├── .claude-plugin/
+│   └── marketplace.json                       ← marketplace catalog
+├── preserve-the-evidence/                     ← the plugin itself
+│   ├── .claude-plugin/
+│   │   └── plugin.json                        ← plugin manifest
+│   ├── commands/
+│   │   └── note.md                            ← /note slash command
+│   ├── hooks/
+│   │   └── hooks.json                         ← Stop hook registration
+│   └── scripts/
+│       └── log-session.js                     ← the logger (pure Node, no deps)
+├── README.md
+├── LICENSE                                    ← MIT
+└── BUILD_PRESERVE_THE_EVIDENCE.md             ← original build spec
+```
+
+## Contributing
+
+PRs welcome. When changing behavior:
+
+1. Test locally with `claude --plugin-dir ./preserve-the-evidence` (from the repo root).
+2. Verify the hook still exits 0 on all code paths — the tests effectively are "does Claude Code keep working after a broken turn?"
+3. Run `node -c preserve-the-evidence/scripts/log-session.js` before committing.
+4. Bump `version` in both `.claude-plugin/marketplace.json` and `preserve-the-evidence/.claude-plugin/plugin.json` when shipping user-visible changes. (Per the [docs](https://code.claude.com/docs/en/plugin-marketplaces#version-resolution-and-release-channels), keep them in sync or let one be authoritative — `plugin.json` wins silently if both are set differently.)
+
+Bug reports and feature requests: open an issue at https://github.com/vibetemplates/preserve-the-evidence/issues.
+
+## License
+
+[MIT](LICENSE) — free to use, modify, and distribute. Copyright © 2026 Edward Honour.
 
 ## Author
 
 Edward Honour ([@edhonour](https://github.com/edhonour))
 
-## License
-
-[MIT](LICENSE) — free to use, modify, and distribute.
+Built with [Claude Code](https://claude.com/claude-code).
