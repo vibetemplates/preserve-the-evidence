@@ -10,19 +10,31 @@ A Claude Code plugin that writes every session as a markdown file under `docs/cl
 
 ## Installation
 
-### Local testing
+### Install from this marketplace (recommended)
 
-From any project, point Claude Code at this plugin directory:
-
-```
-claude --plugin-dir /path/to/preserve-the-evidence
-```
-
-### Marketplace install
+In Claude Code, run:
 
 ```
-/plugin marketplace add <user>/preserve-the-evidence
+/plugin marketplace add vibetemplates/preserve-the-evidence
 /plugin install preserve-the-evidence
+```
+
+That's it — the `Stop` hook and `/preserve-the-evidence:note` command become available immediately in the current project.
+
+To uninstall or update later:
+
+```
+/plugin uninstall preserve-the-evidence
+/plugin marketplace update vibetemplates/preserve-the-evidence
+```
+
+### Local development
+
+If you're hacking on the plugin itself, clone the repo and point Claude Code at it directly:
+
+```
+git clone https://github.com/vibetemplates/preserve-the-evidence.git
+claude --plugin-dir /path/to/preserve-the-evidence
 ```
 
 ## Configuration
@@ -88,3 +100,11 @@ docs/claude-log/
 
 - Hook scripts always exit 0 so they can never block Claude Code. Errors are written to stderr.
 - `${CLAUDE_PLUGIN_ROOT}` in the hook command is substituted by Claude Code at runtime, so the plugin works from any install location, including paths with spaces.
+
+## Author
+
+Edward Honour ([@edhonour](https://github.com/edhonour))
+
+## License
+
+[MIT](LICENSE) — free to use, modify, and distribute.

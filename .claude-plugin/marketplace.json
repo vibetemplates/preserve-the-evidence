@@ -1,0 +1,22 @@
+{
+  "name": "preserve-the-evidence",
+  "owner": {
+    "name": "Edward Honour @edhonour"
+  },
+  "plugins": [
+    {
+      "name": "preserve-the-evidence",
+      "source": ".",
+      "description": "Writes each Claude Code session as markdown to docs/claude-log/. Includes /note command for non-executing annotations.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Edward Honour @edhonour"
+      },
+      "homepage": "https://github.com/vibetemplates/preserve-the-evidence",
+      "repository": "https://github.com/vibetemplates/preserve-the-evidence",
+      "license": "MIT",
+      "keywords": ["logging", "transcript", "notes", "hooks", "session"],
+      "category": "utilities"
+    }
+  ]
+}
