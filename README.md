@@ -3,7 +3,7 @@
 > A Claude Code plugin that preserves a permanent, readable record of every session — no paste-the-transcript, no guessing what changed, no hoping you remember what you asked for last Tuesday.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)
 ![Node.js](https://img.shields.io/badge/node-%E2%89%A516.0.0-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
 
@@ -11,16 +11,24 @@
 
 ## Highlights
 
-- **Automatic per-session markdown transcripts.** Every Claude Code turn overwrites one markdown file — no manual save, no copy/paste, always up to date.
+- **Automatic per-session markdown transcripts.** Every Claude Code turn overwrites your log files — no manual save, no copy/paste, always up to date.
+- **Dual output by default.** Out of the box you get *two* files per session: a readable summary and a complete audit trail with every tool input and result. Pick one-file-only by setting a mode.
 - **Lives in your project.** Logs land in `docs/claude-log/` next to the code they document, so they're commit-able (or ignorable) just like any other file.
 - **`/note` slash command.** Drop annotations into the transcript without Claude running any tools — useful for tagging sections, leaving reminders, or marking decision points.
-- **Three verbosity modes.** `none`, `summary` (default), or `full` — choose how much tool-call detail to keep.
+- **Four modes.** `both` (default, two files), `none`, `summary`, or `full` — choose how much tool-call detail to keep.
 - **Cross-platform, zero dependencies.** Pure Node.js using only built-ins (`fs`, `path`). No `bash`, no `jq`, no `npm install`. Same code runs unchanged on macOS, Linux, and Windows.
 - **Fails safely.** Hook errors never block Claude Code — the script always exits 0 and writes diagnostics to stderr.
 
 ## What you get
 
-After each turn, a file like this appears in your project:
+After each turn, two files appear in your project (by default):
+
+```
+docs/claude-log/2026-04-20_a1b2c3d4.md         ← readable summary
+docs/claude-log/2026-04-20_a1b2c3d4.full.md    ← complete audit trail
+```
+
+The summary file looks like this:
 
 ```
 # Session a1b2c3d4 — 2026-04-20 14:32:17
@@ -55,7 +63,9 @@ check for that call.
 📝 Noted.
 ```
 
-That file is named `docs/claude-log/2026-04-20_a1b2c3d4.md` and is refreshed on every turn until the session ends. A new session = a new file.
+The `.full.md` sibling contains the same conversation plus every tool input and tool result inside collapsible `<details>` blocks, so you have a complete replayable record.
+
+Both files are refreshed on every turn until the session ends. A new session = a new pair of files.
 
 ## Prerequisites
 
@@ -142,13 +152,14 @@ Claude will respond **only** with `📝 Noted.` — no files read, no commands r
 
 ### Logging modes
 
-The plugin supports three modes that control how tool calls render in the log:
+The plugin supports four modes. `both` is the default and writes two files per session. The other three each produce a single file:
 
-| Mode      | Behavior                                                                                                        |
-| :-------- | :-------------------------------------------------------------------------------------------------------------- |
-| `none`    | Only user prompts and Claude's text responses. No tool calls at all. Cleanest reading.                          |
-| `summary` | **Default.** One-line tool summaries like `🔧 **Bash**: \`npm test\`` or `🔧 **Read**: src/foo.ts`.             |
-| `full`    | Complete tool inputs and results inside collapsible `<details>` blocks. Most verbose; best for debugging.       |
+| Mode      | Files written                          | Content                                                                                             |
+| :-------- | :------------------------------------- | :-------------------------------------------------------------------------------------------------- |
+| `both`    | `<id>.md` **and** `<id>.full.md`       | **Default.** Summary + full audit, side by side.                                                    |
+| `none`    | `<id>.md` only                         | User prompts and Claude's text responses only. No tool calls. Cleanest reading.                     |
+| `summary` | `<id>.md` only                         | Prompts + text + one-line tool summaries like `🔧 **Bash**: \`npm test\``.                          |
+| `full`    | `<id>.md` only                         | Prompts + text + every tool input/result inside collapsible `<details>` blocks. Best for debugging. |
 
 ### Setting the mode
 
@@ -156,32 +167,43 @@ Mode is resolved in this order of precedence (first match wins):
 
 1. **CLI argument** passed to the hook script (advanced — only if you're wrapping the hook command yourself)
 2. **Environment variable** `CLAUDE_LOG_MODE`
-3. **File** at `<project>/.claude/log-mode` containing one of `none`, `summary`, `full`
-4. **Default**: `summary`
+3. **File** at `<project>/.claude/log-mode` containing one of `none`, `summary`, `full`, or `both`
+4. **Default**: `both`
+
+Both the env var and the file accept any of `none`, `summary`, `full`, `both`. Invalid values are ignored and precedence falls through to the next source.
 
 **Per-session override via env var:**
 
 ```bash
-CLAUDE_LOG_MODE=full claude
+CLAUDE_LOG_MODE=full claude      # single file, full detail
+CLAUDE_LOG_MODE=summary claude   # single file, summary only
+CLAUDE_LOG_MODE=none claude      # single file, prompts only
 ```
 
-**Persistent per-project setting:**
+**Persistent per-project setting** (no env var needed):
 
 ```bash
-mkdir -p .claude && echo full > .claude/log-mode
+mkdir -p .claude && echo summary > .claude/log-mode
 ```
 
-That file lives inside your project's `.claude/` directory (the same one Claude Code uses for project-local settings) and sticks for everyone who works on the project.
+That file lives inside your project's `.claude/` directory (the same one Claude Code uses for project-local settings) and sticks for everyone who works on the project. It also takes effect on the next turn — no need to restart Claude Code.
+
+To return to the dual-file default, delete the file:
+
+```bash
+rm .claude/log-mode
+```
 
 ## Output format
 
 ### File naming
 
 ```
-docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.md
+docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.md        ← summary (or whichever single mode is active)
+docs/claude-log/<YYYY-MM-DD>_<first-8-of-session-id>.full.md   ← only in `both` mode
 ```
 
-Example: `docs/claude-log/2026-04-20_a1b2c3d4.md`
+Example: `docs/claude-log/2026-04-20_a1b2c3d4.md` (+ `.full.md` by default)
 
 Dates are ISO-format, UTC-based (from `new Date().toISOString()`). The 8-char session ID is a prefix of Claude Code's internal session UUID — enough to be unique in practice while staying readable in filenames.
 
