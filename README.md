@@ -30,12 +30,14 @@ To uninstall or update later:
 
 ### Local development
 
-If you're hacking on the plugin itself, clone the repo and point Claude Code at it directly:
+If you're hacking on the plugin itself, clone the repo and point Claude Code at the plugin subdirectory:
 
 ```
 git clone https://github.com/vibetemplates/preserve-the-evidence.git
-claude --plugin-dir /path/to/preserve-the-evidence
+claude --plugin-dir ./preserve-the-evidence/preserve-the-evidence
 ```
+
+(The outer `preserve-the-evidence/` is the marketplace repo; the inner `preserve-the-evidence/` is the plugin itself.)
 
 ## Configuration
 
